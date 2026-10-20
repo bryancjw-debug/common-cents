@@ -1,0 +1,52 @@
+/* Workspace-only refinements: the expressive welcome is intentionally separate. */
+:root { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+.react-app-shell { inline-size:calc(100% - 32px); max-inline-size:none; }
+.react-appbar { position:static; border-radius:8px; box-shadow:none; backdrop-filter:none; }
+.react-workspace { position:relative; gap:0; padding:0; border-radius:8px; background:hsl(var(--ui-card)); box-shadow:none; }
+.react-workspace > .react-step-rail { padding:20px 12px; gap:4px; }
+.react-step-rail button { border-color:transparent; background:transparent; border-radius:6px; box-shadow:none; }
+.react-step-rail button:hover { transform:none; background:hsl(var(--ui-secondary)); }
+.react-step-rail button.active { border-color:hsl(var(--ui-border)); }
+.react-step-content { min-width:0; padding:24px; animation:none; }
+.react-step-content :is(.shadow-soft,.shadow-sm,.shadow-md,.shadow-lg),.react-step-content [data-slot="card"] { box-shadow:none; }
+.react-step-content .rounded-2xl,.react-step-content .rounded-xl { border-radius:8px; }
+.react-step-content button { box-shadow:none; }
+.react-step-content h2 { font-size:28px; line-height:1.25; }
+.react-step-content h3 { font-size:20px; }
+.projection-pulse { position:static; order:initial; border:0; border-top:1px solid hsl(var(--ui-border)); border-radius:0; margin-top:24px; padding:20px 0 0; box-shadow:none; }
+.summary-compact { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.summary-compact > div { border:0; border-radius:0; padding:8px 0; }
+.react-wizard-actions { position:static; background:transparent; backdrop-filter:none; border:0; border-top:1px solid hsl(var(--ui-border)); border-radius:0; box-shadow:none; margin:24px 0 0; padding:16px 0 0; }
+.react-wizard-actions .mobile-sections { display:none; }
+.mobile-account-summary { grid-template-columns:minmax(0,1fr) auto auto; }
+.mobile-nav-drawer { max-width:min(360px,90vw); background:hsl(var(--ui-card)); }
+.section-sheet .react-step-rail { border:0; padding:0; gap:4px; }
+.section-sheet { max-height:90dvh; overflow-y:auto; }
+.welcome-motion-control { position:relative; z-index:2; display:block; margin:0 0 16px auto; background:hsl(var(--ui-card)); color:hsl(var(--ui-foreground)); border-color:hsl(var(--ui-border)); }
+.react-mobile-controls { display:none!important; }
+.react-workspace .projection-cta { background:hsl(var(--ui-primary)); color:hsl(var(--ui-primary-foreground)); }
+.welcome-motion-paused :is(.welcome-preview-rail,.welcome-live-preview,.welcome-mini-chart i) { animation-play-state:paused; }
+.react-welcome .welcome-illustration-note { position:relative; z-index:1; margin-top:16px; font-size:13px; color:hsl(var(--ui-muted-foreground)); }
+.react-app-shell :is(button,input,select) { min-height:44px; }
+.react-app-shell :is(button,input,select):focus-visible { outline:3px solid hsl(var(--ui-ring)); outline-offset:3px; }
+.react-app-shell * { letter-spacing:0; }
+.react-welcome h1 { font-size:48px; }
+.react-app-shell .pwa-tools { margin:16px 0; }
+.pwa-tools,.pwa-dialog { --surface: hsl(var(--ui-card)); --ink:hsl(var(--ui-foreground)); --line:hsl(var(--ui-border)); }
+@media(max-width:1180px) {
+ .react-app-shell { inline-size:100%; padding:12px; }
+ .react-workspace { display:block; }
+ .react-step-content { padding:20px; }
+ .react-appbar { top:auto; padding:12px; }
+}
+@media(max-width:800px) {
+ .react-app-shell { padding:8px 8px calc(100px + env(safe-area-inset-bottom)); }
+ .react-step-content { padding:16px; }
+ .react-wizard-actions { visibility:hidden; height:0; padding:0; margin:0; border:0; overflow:hidden; }
+ .mobile-step-actions { position:fixed; display:flex; align-items:center; justify-content:space-between; gap:8px; inset:auto 0 0; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); border-top:1px solid hsl(var(--ui-border)); background:hsl(var(--ui-card)); z-index:40; }
+ .summary-compact { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .react-welcome h1 { font-size:34px; }
+ .welcome-choice-grid { grid-template-columns:1fr; }
+}
+@media(min-width:801px) { .mobile-step-actions { display:none; } }
+@media(prefers-reduced-motion:reduce) { .welcome-motion-control { display:none; } }
