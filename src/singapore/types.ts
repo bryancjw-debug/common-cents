@@ -275,6 +275,13 @@ export interface TaxReliefSelection {
   enabled: boolean;
   amount: number | "";
   year?: number | "";
+  mode?: "auto" | "custom";
+  disability?: boolean;
+  dependants?: number;
+  share?: number;
+  livingWith?: boolean;
+  nsCategory?: "selfInactive" | "selfActive" | "keyInactive" | "keyActive" | "wife" | "parent";
+  endAge?: number | "";
 }
 
 export interface SingaporePlannerProfile {

@@ -1,5 +1,6 @@
 import type { ProjectionYear, SingaporePlannerProfile } from "./types";
-import { monthlyExpenses, monthlyIncome, normalizeProfile, positive, projectSingaporeProfile, retirementSumsForYear, projectionYear } from "./projection";
+import { monthlyExpenses, monthlyIncome, normalizeProfile, positive, projectSingaporeProfile, retirementSumsForYear, projectionYear, incomeTaxDetails } from "./projection";
+import { reliefAmount, taxReliefOptions } from './taxReliefs';
 
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
@@ -340,12 +341,22 @@ function personPortfolioRows(profile: SingaporePlannerProfile): Array<[string, s
 }
 
 function personTaxRows(profile: SingaporePlannerProfile): Array<[string, string]> {
+  const age=positive(profile.age),gross=monthlyIncome(profile)*12,ya=projectionYear(profile,age)+1;
+  const details=incomeTaxDetails(profile,gross,age);
   return [
-    ["Eligible Donations", money(positive(profile.tax.donations))],
+    ["Donation Deduction (Outside Cap)", money(details.donationRelief)],
+    ["Personal Reliefs (After Cap)", money(details.relief)],
+    ["Chargeable Income", money(details.chargeable)],
+    ["Tax Payable (Current Estimate)", money(details.tax)],
     ["Other Reliefs", money(positive(profile.tax.otherReliefs))],
     ["Tax Rebates", money(positive(profile.tax.rebates))],
     ["Property Tax Payable", money(positive(profile.tax.propertyTaxAnnual))],
-    ["Tax Payment Mode", profile.taxMode]
+    ["Tax Payment Mode", profile.taxMode],
+    ...taxReliefOptions.filter(option=>profile.tax.reliefs[option.key]?.enabled).map(option=>{
+      const selection=profile.tax.reliefs[option.key]!;
+      const value=option.rebate?positive(selection.amount):reliefAmount(option.key,selection,age,gross,ya,profile.gender);
+      return [option.label,`${money(value)} (${option.rebate?'unused balance':selection.mode==='auto'?'calculated':'custom'})`] as [string,string];
+    })
   ];
 }
 

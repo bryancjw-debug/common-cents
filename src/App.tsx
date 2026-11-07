@@ -34,6 +34,7 @@ import {
   careShieldCoverageAnnual,
   mediShieldPremiumAtAge,
   annualIncomeTax,
+  incomeTaxDetails,
   cpfContribution,
   projectionYear,
   retirementSumsForYear,
@@ -68,6 +69,8 @@ import { createInputSummaryReport, reportFilename } from "@/singapore/report";
 import "./styles.css";
 import "./workspace.css";
 import { enterStep, leaveStep } from "./lib/stepMotion";
+import { TaxReliefPanel } from "./components/TaxReliefPanel";
+import { SpendingChangeFields } from "./components/SpendingChangeFields";
 
 type CouplePersonKey = "person1" | "person2";
 type ProjectionScope = CouplePersonKey | "combined";
@@ -1157,20 +1160,6 @@ function ExpensesStep({ profile, update }: StepProps) {
 
 const policyTypes: InsurancePolicyType[] = ["Term", "Whole Life", "Investment Linked Policies", "Universal Life", "Hospitalization", "Personal Accident", "Careshield Life Enhancement", "Disability Income"];
 const insurers = ["Great Eastern Life", "AIA Singapore", "Prudential Singapore", "Income Insurance", "Manulife Singapore", "Singlife", "HSBC Life", "Etiqa", "FWD Singapore", "Other"];
-const taxReliefOptions: { key: TaxReliefKey; label: string; helper: string; defaultAmount: number | ""; rebate?: boolean }[] = [
-  { key: "earnedIncome", label: "Earned Income Relief", helper: "Usually applies when you have employment or trade income.", defaultAmount: 1000 },
-  { key: "spouse", label: "Spouse / Handicapped Spouse Relief", helper: "Use only if you qualify under IRAS rules.", defaultAmount: 2000 },
-  { key: "parent", label: "Parent / Handicapped Parent Relief", helper: "Enter the qualifying amount based on living arrangement and eligibility.", defaultAmount: 9000 },
-  { key: "child", label: "Qualifying / Handicapped Child Relief", helper: "Enter the total child relief amount that applies to your household.", defaultAmount: 4000 },
-  { key: "workingMotherChild", label: "Working Mother's Child Relief", helper: "For eligible working mothers. Enter the qualifying amount after checking IRAS rules.", defaultAmount: "" },
-  { key: "grandparentCaregiver", label: "Grandparent Caregiver Relief", helper: "For eligible working mothers with qualifying caregiver arrangements.", defaultAmount: 3000 },
-  { key: "foreignDomesticWorker", label: "Foreign Domestic Worker Levy Relief", helper: "Applies only where IRAS eligibility conditions are met.", defaultAmount: "" },
-  { key: "courseFees", label: "Course Fees Relief", helper: "For qualifying employment-related courses, subject to IRAS limits.", defaultAmount: "" },
-  { key: "cpfCashTopUp", label: "CPF Cash Top-Up Relief", helper: "For eligible cash top-ups to CPF accounts. Enter only the relief amount that qualifies.", defaultAmount: "" },
-  { key: "lifeInsurance", label: "Life Insurance Relief", helper: "Only available in limited situations; check IRAS eligibility before enabling.", defaultAmount: "" },
-  { key: "nsman", label: "NSman Relief", helper: "For eligible NSmen, wives, and parents.", defaultAmount: 1500 },
-  { key: "parenthoodTaxRebate", label: "Parenthood Tax Rebate", helper: "This is a rebate, not a relief. Enter the applicable YA/year and amount.", defaultAmount: "", rebate: true }
-];
 
 function newPolicy(profile: SingaporePlannerProfile): InsurancePolicy {
   return {
@@ -1669,8 +1658,8 @@ function TaxesStep({ profile, update }: StepProps) {
   const srsRelief = srsContributionAtAge(profile, age);
   const selectedTaxReliefs = taxReliefSelectionsTotal(profile);
   const selectedTaxRebates = taxRebateSelectionsTotal(profile);
-  const qualifyingReliefs = Math.min(80_000, cpfRelief + donationRelief + positive(profile.tax.otherReliefs) + selectedTaxReliefs + srsRelief);
-  const chargeableIncome = Math.max(0, gross - qualifyingReliefs);
+  const qualifyingReliefs = Math.min(80_000, cpfRelief + positive(profile.tax.otherReliefs) + selectedTaxReliefs + srsRelief);
+  const chargeableIncome = incomeTaxDetails(profile,gross,age).chargeable;
   const taxPayable = annualIncomeTax(profile, gross, age);
   const taxWithoutSrs = annualIncomeTax({ ...profile, srs: { ...profile.srs, enabled: false, annualContribution: 0 } }, gross, age);
   const srsTaxSaving = Math.max(0, taxWithoutSrs - taxPayable);
@@ -1686,11 +1675,11 @@ function TaxesStep({ profile, update }: StepProps) {
         <MetricCard label="Chargeable Income" value={currency(chargeableIncome)} />
         <MetricCard label="Net Income Tax Payable" value={currency(taxPayable)} tone={taxPayable > 0 ? "bad" : "good"} />
       </div>
-      <FieldCard title="Your Taxes" description="Tax logic uses gross income less employee CPF and selected reliefs capped at SGD 80,000, then resident tax rates less rebates.">
+      <FieldCard title="Your Taxes" description="Singapore-resident estimate: deduct qualifying donations separately, apply personal reliefs up to SGD 80,000, then calculate tax less applicable rebates.">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <NumberField label="Eligible Donations" value={profile.tax.donations} onChange={(donations) => update({ tax: { ...profile.tax, donations } })} />
+          <NumberField label="Annual Qualifying IPC Donations" value={profile.tax.donations} helper="Only qualifying 250% donations. Deducted separately from the personal-relief cap; current rules held constant for planning. Unused donation deductions are not carried forward in this estimate." onChange={(donations) => update({ tax: { ...profile.tax, donations } })} />
           <NumberField label="Other Reliefs" value={profile.tax.otherReliefs} onChange={(otherReliefs) => update({ tax: { ...profile.tax, otherReliefs } })} />
-          <NumberField label="Tax Rebates" value={profile.tax.rebates} onChange={(rebates) => update({ tax: { ...profile.tax, rebates } })} />
+          <NumberField label="Other Annual Tax Rebates (Custom)" value={profile.tax.rebates} helper="Assumed recurring each year. Exclude the separate Parenthood Tax Rebate balance below; no Budget rebate is automatically credited." onChange={(rebates) => update({ tax: { ...profile.tax, rebates } })} />
           <div className="grid gap-2">
             <NumberField label="Annual Property Tax Payable" value={profile.tax.propertyTaxAnnual} onChange={(propertyTaxAnnual) => update({ tax: { ...profile.tax, propertyTaxAnnual } })} />
             <p className="text-xs leading-relaxed text-muted-foreground">Enter the yearly property tax payable for owned properties. This is treated as an annual cash outflow in your projection.</p>
@@ -1699,30 +1688,9 @@ function TaxesStep({ profile, update }: StepProps) {
         </div>
         <div className="rounded-lg border bg-secondary/40 p-4 text-sm text-muted-foreground">
           <strong className="block text-foreground">Formula</strong>
-          Gross Annual Income {currency(gross)} - Qualifying Reliefs {currency(qualifyingReliefs)} = Chargeable Income {currency(chargeableIncome)}. Tax payable is then calculated from the resident tax table less rebates.
+          Gross Annual Income {currency(gross)} - Donation Deduction {currency(donationRelief)} - Personal Reliefs {currency(qualifyingReliefs)} = Chargeable Income {currency(chargeableIncome)}. Tax payable is then calculated from the resident tax table less rebates. Income in {projectionYear(profile,age)} corresponds to YA {projectionYear(profile,age)+1}; tax cash flows are approximated in the income year.
         </div>
-        <p className="text-sm text-muted-foreground">Donations are treated as 2.5x tax relief per dollar of eligible donation.</p>
-        <div className="tax-relief-grid">
-          {taxReliefOptions.map((item) => {
-            const relief = profile.tax.reliefs[item.key] ?? { enabled: false, amount: "", year: "" };
-            return (
-              <div className="rounded-lg border bg-card p-4" key={item.key}>
-                <ToggleRow
-                  label={item.label}
-                  checked={Boolean(relief.enabled)}
-                  onChange={(enabled) => setRelief(item.key, { enabled, amount: enabled && relief.amount === "" ? item.defaultAmount : relief.amount })}
-                />
-                {relief.enabled ? (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <NumberField label={item.rebate ? "Rebate Amount" : "Relief Amount"} value={relief.amount} onChange={(amount) => setRelief(item.key, { amount })} />
-                    {item.rebate ? <NumberField label="Applicable YA / Year" value={relief.year ?? ""} onChange={(year) => setRelief(item.key, { year })} /> : null}
-                    <p className="text-sm text-muted-foreground sm:col-span-2">{item.helper}</p>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
+        <TaxReliefPanel profile={profile} age={age} gross={gross} ya={projectionYear(profile,age)+1} onChange={setRelief}/>
         <div className="grid gap-3 md:grid-cols-3">
           <MetricCard label="Selected Reliefs" value={currency(selectedTaxReliefs)} tone="good" />
           <MetricCard label="Selected Rebates" value={currency(selectedTaxRebates)} tone="info" />
@@ -2112,7 +2080,7 @@ function LifeEventEditor({ event, profile, update, remove }: { event: LifeEvent;
       <NumberField label="Age" value={event.age} onChange={(age) => update({ age })} />
       <NumberField label={isHouse ? "Additional Purchase Costs" : "One-Time Cost"} value={event.cost} onChange={(cost) => update({ cost })} />
       {!isHouse && !event.zeroIncome ? <NumberField label="Monthly Income Change In Today's Dollars" value={event.incomeChange} onChange={(incomeChange) => update({ incomeChange })} /> : null}
-      <NumberField label={isHouse ? "Other Monthly Housing Expense Change In Today's Dollars" : "Monthly Expense Change In Today's Dollars"} value={event.expenseChange} onChange={(expenseChange) => update({ expenseChange })} />
+      <SpendingChangeFields retirement={isRetirement} baseToday={beforeExpenses / expenseGrowth ** yearsFromToday} change={toNumber(event.expenseChange)} onChange={(expenseChange) => update({expenseChange})}/>
       {!isHouse ? <ToggleRow label="Set Active Income To Zero" checked={event.zeroIncome} onChange={(zeroIncome) => update({ zeroIncome, incomeChange: zeroIncome ? 0 : event.incomeChange })} /> : null}
       {isHouse && housing ? (
         <div className="retirement-preview">
@@ -2151,10 +2119,10 @@ function LifeEventEditor({ event, profile, update, remove }: { event: LifeEvent;
             <MetricCard label="Projected Income Before Retirement Event" value={currency(beforeIncome)} />
             <MetricCard label="Active Income After Event" value={currency(afterIncome)} tone={afterIncome > 0 ? "info" : "bad"} />
             <MetricCard label="Projected Expenses Before Change" value={currency(beforeExpenses)} />
-            <MetricCard label="Expense Change At Event Age" value={currency(expenseDelta)} tone={expenseDelta <= 0 ? "good" : "bad"} />
+            <MetricCard label={expenseDelta < 0 ? "Monthly Spending Reduction At Retirement" : "Monthly Spending Increase At Retirement"} value={currency(Math.abs(expenseDelta))} tone={expenseDelta <= 0 ? "good" : "bad"} />
             <MetricCard label="Projected Expenses After Change" value={currency(afterExpenses)} tone="info" />
           </div>
-          <p className="retirement-preview__hint">Tip: use a negative expense change if retirement reduces spending. CPF LIFE, dividends, SRS withdrawals, and drawdowns are handled separately in the projection.</p>
+          <p className="retirement-preview__hint">Your expected monthly spending is shown above in today’s dollars and here in retirement-age dollars. CPF LIFE, dividends, SRS withdrawals and drawdowns fund spending separately; they do not reduce the spending budget itself.</p>
         </div>
       ) : null}
       <Button variant="outline" className="self-end" onClick={remove}>Delete</Button>
@@ -2859,8 +2827,8 @@ function eventDataCells(row: ProjectionYear, profile: SingaporePlannerProfile): 
     const active = positive(event.age) === row.age;
     const label = event.label || event.type;
     cells.push({ label: `${label} Cost`, value: active ? positive(event.cost) : 0 });
-    cells.push({ label: `${label} Monthly Income Change`, value: active ? positive(event.incomeChange) : 0 });
-    cells.push({ label: `${label} Monthly Expense Change`, value: active ? positive(event.expenseChange) : 0 });
+    cells.push({ label: `${label} Monthly Income Change`, value: active ? toNumber(event.incomeChange) : 0 });
+    cells.push({ label: `${label} Monthly Expense Change`, value: active ? toNumber(event.expenseChange) : 0 });
     cells.push({ label: `${label} Zero Income`, value: active && event.zeroIncome ? "Yes" : "No", format: "text" });
     if (event.type === "House" && event.housing) {
       cells.push({ label: `${label} Purchase Price`, value: active ? positive(event.housing.purchasePrice) : 0 });

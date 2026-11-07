@@ -1,5 +1,6 @@
 import { CPF_ANNUAL_CAP_2026, createDefaultPartnerProfile, createDefaultProfile, investmentReturnDefaults, retirementEvent } from "./defaults";
 import { geHospitalizationPremium } from "./geHospitalization";
+import { selectedReliefTotal } from "./taxReliefs";
 import type {
   CarAsset,
   CpfContribution,
@@ -428,22 +429,29 @@ export function incomeTaxResident(chargeableIncome: number) {
   return tax;
 }
 
-export function annualIncomeTax(profile: SingaporePlannerProfile, annualGross: number, age = positive(profile.age), extraTaxableIncome = 0) {
+export function incomeTaxDetails(profile: SingaporePlannerProfile, annualGross: number, age = positive(profile.age), extraTaxableIncome = 0, parenthoodBalance = taxRebateSelectionsTotal(profile, age)) {
   const employeeCpf = cpfContribution(profile, age, annualGross).employee;
   const donationRelief = positive(profile.tax.donations) * 2.5;
-  const selectedReliefs = employeeCpf + donationRelief + positive(profile.tax.otherReliefs) + taxReliefSelectionsTotal(profile) + srsContributionAtAge(profile, age);
+  const selectedReliefs = employeeCpf + positive(profile.tax.otherReliefs) + taxReliefSelectionsTotal(profile, age, annualGross) + srsContributionAtAge(profile, age);
   const relief = Math.min(80_000, selectedReliefs);
-  const chargeable = Math.max(0, annualGross + extraTaxableIncome - relief);
-  return Math.max(0, incomeTaxResident(chargeable) - positive(profile.tax.rebates) - taxRebateSelectionsTotal(profile));
+  const chargeable = Math.max(0, annualGross + extraTaxableIncome - donationRelief - relief);
+  const beforeRebates = incomeTaxResident(chargeable);
+  const afterOtherRebates = Math.max(0, beforeRebates - positive(profile.tax.rebates));
+  const parenthoodRebateUsed = Math.min(afterOtherRebates, positive(parenthoodBalance), taxRebateSelectionsTotal(profile, age));
+  return { employeeCpf, donationRelief, selectedReliefs, relief, chargeable, beforeRebates, parenthoodRebateUsed, tax:Math.max(0,afterOtherRebates-parenthoodRebateUsed) };
 }
 
-export function taxReliefSelectionsTotal(profile: SingaporePlannerProfile) {
-  return Object.entries(profile.tax.reliefs ?? {}).reduce((total, [key, relief]) => total + (key === "parenthoodTaxRebate" || !relief?.enabled ? 0 : positive(relief.amount)), 0);
+export function annualIncomeTax(profile: SingaporePlannerProfile, annualGross: number, age = positive(profile.age), extraTaxableIncome = 0) {
+  return incomeTaxDetails(profile,annualGross,age,extraTaxableIncome).tax;
 }
 
-export function taxRebateSelectionsTotal(profile: SingaporePlannerProfile) {
+export function taxReliefSelectionsTotal(profile: SingaporePlannerProfile, age=positive(profile.age), earnedIncome=monthlyIncome(profile)*12) {
+  return selectedReliefTotal(profile,age,earnedIncome,projectionYear(profile,age)+1);
+}
+
+export function taxRebateSelectionsTotal(profile: SingaporePlannerProfile, age=positive(profile.age)) {
   const rebate = profile.tax.reliefs?.parenthoodTaxRebate;
-  return rebate?.enabled ? positive(rebate.amount) : 0;
+  return rebate?.enabled && projectionYear(profile,age)+1 >= (positive(rebate.year)||projectionYear(profile,positive(profile.age))+1) ? positive(rebate.amount) : 0;
 }
 
 export function srsCap(profile: SingaporePlannerProfile) {
@@ -814,6 +822,7 @@ export function projectSingaporeProfile(input: SingaporePlannerProfile): Project
   };
   let cash = positive(profile.freeCash);
   let srsBalance = positive(profile.srs.currentBalance);
+  let parenthoodRebateBalance = positive(profile.tax.reliefs?.parenthoodTaxRebate?.amount);
   let lifeStarted = false;
   let lifeBase = 0;
   let cpfLifeReserve = 0;
@@ -870,7 +879,9 @@ export function projectSingaporeProfile(input: SingaporePlannerProfile): Project
     const cpfContrib = employmentCpfApplies(profile, age) ? cpfContribution(profile, age, activeIncome) : { oa: 0, sa: 0, ma: 0, ra: 0, employee: 0, employer: 0, total: 0 };
     const annualIncome = activeIncome + cpfLife + srsWithdrawal;
     const takeHomeIncome = Math.max(0, activeIncome - cpfContrib.employee) + cpfLife + srsWithdrawal;
-    const incomeTax = annualIncomeTax(profile, activeIncome, age, taxableSrsWithdrawal(profile, srsWithdrawal));
+    const taxDetails = incomeTaxDetails(profile, activeIncome, age, taxableSrsWithdrawal(profile, srsWithdrawal), parenthoodRebateBalance);
+    const incomeTax = taxDetails.tax;
+    parenthoodRebateBalance = Math.max(0,parenthoodRebateBalance-taxDetails.parenthoodRebateUsed);
     const annualExpenses = projectedExpenses(profile, age) * 12;
     const lifeCosts = eventCosts(profile, age);
     let contribs = 0;
